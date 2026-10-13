@@ -261,6 +261,13 @@ textarea:focus-visible, input[type="number"]:focus-visible { outline: 3px solid 
 .sum[data-ok="false"] { color: var(--err); background: var(--white); border: 2px solid var(--err); }
 .errors { margin: 0; padding-left: 18px; color: var(--err); font-weight: 700; }
 .row-btns { display: flex; flex-wrap: wrap; gap: 10px; }
+.share { display: grid; gap: 10px; margin-top: 6px; padding-top: 14px; border-top: 2px dashed var(--l2); }
+.share h3 { margin: 0; font: 700 .9rem/1.2 var(--font); letter-spacing: .1em; text-transform: uppercase; }
+.share p { margin: 0; }
+.link-out {
+  width: 100%; padding: 9px 12px; border-radius: 10px; font: 400 .85rem var(--mono);
+  color: var(--black); background: var(--white); border: 2px solid var(--black);
+}
 
 /* ---------- Stopka ---------- */
 .foot { display: flex; flex-direction: column; align-items: center; gap: 18px; padding-top: 6px; text-align: center; }
@@ -354,6 +361,7 @@ textarea:focus-visible, input[type="number"]:focus-visible { outline: 3px solid 
     <button class="btn" id="countBtn" type="button">Zmień liczbę losów</button>
     <button class="btn" id="resetBtn" type="button">Resetuj losy</button>
     <button class="btn" id="soundBtn" type="button" aria-pressed="false">Dźwięk: włączony</button>
+    <button class="btn" id="hideBtn" type="button" aria-pressed="false" aria-controls="settings">Ukryj ustawienia</button>
   </div>
 
   <div class="cols">
@@ -397,6 +405,16 @@ textarea:focus-visible, input[type="number"]:focus-visible { outline: 3px solid 
         <button class="btn" id="sampleBtn" type="button">Przykładowa lista</button>
       </div>
       <p class="hint-text">„Dopasuj ilości” przelicza wszystkie nagrody proporcjonalnie, tak żeby ich suma równała się liczbie losów. Plik może być .txt, .csv lub .xlsx: w jednej kolumnie ilość, w drugiej nazwa nagrody.</p>
+
+      <div class="share">
+        <h3>Link z zapisaną listą nagród</h3>
+        <p>Przygotuj listę dzień wcześniej, skopiuj link i wyślij go osobie, która poprowadzi loterię. Po otwarciu linku na swoim urządzeniu zobaczy dokładnie te same nagrody i tę samą liczbę losów. Link zawiera tylko listę nagród i liczbę losów, nie zawiera wyników losowania.</p>
+        <div class="row-btns">
+          <button class="btn primary" id="linkBtn" type="button">Skopiuj link z tą listą</button>
+        </div>
+        <label class="sr" for="linkOut">Link z listą nagród</label>
+        <input id="linkOut" class="link-out" type="text" readonly hidden>
+      </div>
     </div>
   </section>
 
@@ -576,6 +594,8 @@ function adjacentRepeats(assign, prizes) {
 var KEY = 'losomat200:v3';
 var SOUND_KEY = 'losomat200:sound';
 var SPEED_KEY = 'losomat200:speed';
+var HIDE_KEY = 'losomat200:hideSettings';
+var LINK_KEY = 'losomat200:link';
 var MAXN = 1000;
 var reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 var $ = function (id) { return document.getElementById(id); };
@@ -1090,6 +1110,79 @@ function handleFile(file) {
   }
 }
 
+/* ---------- ukrywanie ustawień ---------- */
+var settingsHidden = false;
+try { settingsHidden = localStorage.getItem(HIDE_KEY) === '1'; } catch (e) {}
+function renderSettingsVisibility() {
+  $('settings').hidden = settingsHidden;
+  $('countBtn').hidden = settingsHidden;
+  var b = $('hideBtn');
+  b.setAttribute('aria-pressed', settingsHidden ? 'true' : 'false');
+  b.textContent = settingsHidden ? 'Pokaż ustawienia' : 'Ukryj ustawienia';
+}
+function toggleSettings() {
+  settingsHidden = !settingsHidden;
+  try { localStorage.setItem(HIDE_KEY, settingsHidden ? '1' : '0'); } catch (e) {}
+  renderSettingsVisibility();
+  say(settingsHidden ? 'Ustawienia ukryte.' : 'Ustawienia widoczne.');
+}
+
+/* ---------- link z zapisaną listą nagród ---------- */
+/* Lista nagród i liczba losów są zakodowane w części linku po znaku #, więc działa to na GitHub Pages bez serwera. */
+function encodeConfig(text, n) {
+  var bytes = new TextEncoder().encode(JSON.stringify({ v: 1, n: n, t: text })), bin = '';
+  for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function decodeConfig(code) {
+  try {
+    var b = code.replace(/-/g, '+').replace(/_/g, '/');
+    while (b.length % 4) b += '=';
+    var bin = atob(b), bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    var o = JSON.parse(new TextDecoder().decode(bytes));
+    if (!o || typeof o.t !== 'string' || typeof o.n !== 'number') return null;
+    return o;
+  } catch (e) { return null; }
+}
+function linkFromEditor() {
+  var p = parseEditor();
+  if (!p.ok) return null;
+  var base = location.href.split('#')[0];
+  return base + '#lista=' + encodeConfig($('prizesInput').value, p.n);
+}
+function copyLink() {
+  var link = linkFromEditor();
+  if (!link) { say('Najpierw popraw listę nagród i liczbę losów. Link można utworzyć tylko z poprawnej listy.', 'err'); return; }
+  var out = $('linkOut');
+  out.value = link;
+  out.hidden = false;
+  function manual() { out.focus(); out.select(); say('Zaznaczyłam link poniżej, skopiuj go (Ctrl+C) i wyślij dalej.', 'ok'); }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(link).then(function () {
+      say('Link skopiowany. Wyślij go osobie, która poprowadzi loterię.', 'ok');
+    }).catch(manual);
+  } else manual();
+}
+/* Zwraca komunikat, jeśli wczytano listę z linku, albo null. Ta sama lista z linku jest wczytywana tylko raz na przeglądarkę,
+   dzięki temu odświeżenie strony w trakcie loterii nie kasuje wylosowanych losów. */
+function applyLinkConfig() {
+  var m = /^#lista=([A-Za-z0-9_-]+)$/.exec(location.hash);
+  if (!m) return null;
+  var seen = '';
+  try { seen = localStorage.getItem(LINK_KEY) || ''; } catch (e) {}
+  if (seen === m[1]) return null;
+  var cfg = decodeConfig(m[1]);
+  var parsed = cfg ? parsePrizes(cfg.t) : null;
+  var prizes = null;
+  if (cfg && cfg.n % 1 === 0 && cfg.n >= 1 && cfg.n <= MAXN && parsed.errors.length === 0) prizes = withBlank(parsed.items, cfg.n);
+  if (!prizes) return 'Link z listą nagród jest uszkodzony albo niepełny. Poproś o nowy link.';
+  try { localStorage.setItem(LINK_KEY, m[1]); } catch (e) {}
+  if (state.drawn.length > 0 && !window.confirm('W tej przeglądarce trwa już losowanie. Wczytać listę z linku i zacząć od nowa? Wylosowane losy zostaną zresetowane.')) return null;
+  state = makeState(prizes, cfg.n);
+  return 'Wczytano listę nagród z linku: ' + cfg.n + ' losów, ' + parsed.items.length + ' rodzajów nagród.' + spreadNote();
+}
+
 /* ---------- export ---------- */
 function exportXlsx() {
   if (typeof XLSX === 'undefined') {
@@ -1184,14 +1277,19 @@ function exportXlsx() {
 /* ---------- init ---------- */
 buildBulbs();
 state = loadState() || defaultState();
+var linkMsg = applyLinkConfig();
 saveState();
 syncEditorFromState();
 renderSoundBtn();
 renderSpeed();
+renderSettingsVisibility();
 rebuildForState();
+if (linkMsg) say(linkMsg, linkMsg.indexOf('Wczytano') === 0 ? 'ok' : 'err');
 
 $('spinBtn').addEventListener('click', doSpin);
 $('exportBtn').addEventListener('click', exportXlsx);
+$('hideBtn').addEventListener('click', toggleSettings);
+$('linkBtn').addEventListener('click', copyLink);
 $('countBtn').addEventListener('click', goToCount);
 $('scaleBtn').addEventListener('click', scaleToCount);
 $('soundBtn').addEventListener('click', function () {
