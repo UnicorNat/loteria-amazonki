@@ -1091,48 +1091,94 @@ function handleFile(file) {
 }
 
 /* ---------- export ---------- */
-var dl = null;
 function exportXlsx() {
-  if (typeof XLSX === 'undefined') { say('Nie udało się załadować biblioteki XLSX. Odśwież stronę.', 'err'); return; }
-  if (!dl) { say('Pobieranie plików nie jest dostępne w tym widoku.', 'err'); return; }
-  var n = state.n;
-  var order = {};
-  state.drawn.forEach(function (t, i) { order[t] = i + 1; });
-  var rows = [['Nr losu', 'Nagroda', 'Status', 'Kolejność losowania']];
-  for (var t = 1; t <= n; t++) {
-    rows.push([t, prizeOf(t).name, order[t] ? 'Wylosowany' : 'Niewylosowany', order[t] || '']);
+  if (typeof XLSX === 'undefined') {
+    say('Nie udało się załadować biblioteki XLSX. Odśwież stronę.', 'err');
+    return;
   }
-  var dc = drawnCounts();
-  var sum = [['Nagroda', 'Liczba losów', 'Wylosowano', 'Pozostało']];
-  var tq = 0, td = 0;
-  state.prizes.forEach(function (p, i) {
-    sum.push([p.name, p.qty, dc[i], p.qty - dc[i]]);
-    tq += p.qty; td += dc[i];
-  });
-  sum.push(['Razem', tq, td, tq - td]);
 
-  var ws1 = XLSX.utils.aoa_to_sheet(rows);
-  ws1['!cols'] = [{ wch: 10 }, { wch: 28 }, { wch: 16 }, { wch: 20 }];
-  ws1['!autofilter'] = { ref: 'A1:D' + (n + 1) };
-  var ws2 = XLSX.utils.aoa_to_sheet(sum);
-  ws2['!cols'] = [{ wch: 28 }, { wch: 14 }, { wch: 14 }, { wch: 12 }];
-  var wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws1, 'Losy');
-  XLSX.utils.book_append_sheet(wb, ws2, 'Podsumowanie');
-  var out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-  var d = new Date();
-  var stamp = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
-  dl.save({
-    filename: 'losomat-losy-' + stamp + '.xlsx',
-    data: new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-  }).then(function () {
+  try {
+    var n = state.n;
+    var order = {};
+
+    state.drawn.forEach(function (t, i) {
+      order[t] = i + 1;
+    });
+
+    var rows = [['Nr losu', 'Nagroda', 'Status', 'Kolejność losowania']];
+
+    for (var t = 1; t <= n; t++) {
+      rows.push([
+        t,
+        prizeOf(t).name,
+        order[t] ? 'Wylosowany' : 'Niewylosowany',
+        order[t] || ''
+      ]);
+    }
+
+    var dc = drawnCounts();
+    var sum = [['Nagroda', 'Liczba losów', 'Wylosowano', 'Pozostało']];
+    var tq = 0, td = 0;
+
+    state.prizes.forEach(function (p, i) {
+      sum.push([p.name, p.qty, dc[i], p.qty - dc[i]]);
+      tq += p.qty;
+      td += dc[i];
+    });
+
+    sum.push(['Razem', tq, td, tq - td]);
+
+    var ws1 = XLSX.utils.aoa_to_sheet(rows);
+    ws1['!cols'] = [
+      { wch: 10 }, { wch: 28 }, { wch: 16 }, { wch: 20 }
+    ];
+    ws1['!autofilter'] = { ref: 'A1:D' + (n + 1) };
+
+    var ws2 = XLSX.utils.aoa_to_sheet(sum);
+    ws2['!cols'] = [
+      { wch: 28 }, { wch: 14 }, { wch: 14 }, { wch: 12 }
+    ];
+
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws1, 'Losy');
+    XLSX.utils.book_append_sheet(wb, ws2, 'Podsumowanie');
+
+    var out = XLSX.write(wb, {
+      bookType: 'xlsx',
+      type: 'array'
+    });
+
+    var d = new Date();
+    var stamp = d.getFullYear() + '-' +
+      ('0' + (d.getMonth() + 1)).slice(-2) + '-' +
+      ('0' + d.getDate()).slice(-2);
+
+    var blob = new Blob([out], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    });
+
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+
+    a.href = url;
+    a.download = 'losomat-losy-' + stamp + '.xlsx';
+    a.style.display = 'none';
+
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    // Zwolnij adres pliku dopiero po rozpoczęciu pobierania.
+    setTimeout(function () {
+      URL.revokeObjectURL(url);
+    }, 1000);
+
     say('Plik XLSX gotowy.', 'ok');
-  }).catch(function (e) {
-    var code = e && e.code;
-    if (code === 'declined') say('Pobieranie anulowane.');
-    else if (code === 'rate_limited') say('Poczekaj chwilę i spróbuj ponownie.', 'err');
-    else say('Nie udało się zapisać pliku (' + (code || 'błąd') + ').', 'err');
-  });
+
+  } catch (e) {
+    console.error('Błąd eksportu XLSX:', e);
+    say('Nie udało się wygenerować pliku XLSX. Spróbuj ponownie.', 'err');
+  }
 }
 
 /* ---------- init ---------- */
@@ -1178,12 +1224,7 @@ twoStep($('resetBtn'), 'Resetuj losy', 'Na pewno? Kliknij ponownie', resetDraws,
 twoStep($('applyBtn'), 'Zastosuj ustawienia i resetuj losy', 'Na pewno? Kliknij ponownie', applySettings, function () { return state.drawn.length > 0; });
 twoStep($('finishBtn'), 'Dokończ losowanie', 'Na pewno? Kliknij ponownie', finishAll, function () { return true; });
 
-if (window.claude && window.claude.use) {
-  window.claude.use('downloads').then(function (d) {
-    dl = d;
-    if (!d) say('Pobieranie pliku XLSX nie jest dostępne w tym widoku.');
-  }).catch(function () { dl = null; });
-}
+
 })();
 </script>
 
