@@ -1,6 +1,16 @@
 <!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
-<title>Losomat 200</title>
-<!-- CZCIONKA: wpisz tu <link> do swojej czcionki i podmień zmienną --font w sekcji :root. Strona używa tylko wagi zwykłej (400) i pogrubionej (700). -->
+<title>Loteria Amazonki</title>
+<style>
+@font-face {
+  font-family: 'MojaCzcionka';
+  src: url('primark2.ttf') format('truetype');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
+
 <style>
 /* Layout: a slot-machine cabinet centered on a pastel page, with a charity banner above, board and prize editor below, Primark logo at the bottom. */
 /* PALETA: osiem kolorów z projektu i dwa kolory pomocnicze (błąd, tło wskaźników). */
@@ -14,7 +24,7 @@
   --l1: #d7dcff;
   --l2: #a0a5ff;
   --err: #b00020;
-  --font: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --font: MojaCzcionka, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --reel-h: clamp(96px, 28vw, 120px);
   color-scheme: light;
